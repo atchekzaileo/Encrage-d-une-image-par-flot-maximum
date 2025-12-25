@@ -1,103 +1,56 @@
-# README — Projet LIFAPC — Encrage d’une image par flot maximum  
+# Projet LIFAPC (TP9) — Encrage d’une image par flot maximum (min-cut)
 Université Claude Bernard Lyon 1 — L3 Informatique  
-Module : Algorithmique, Programmation et Complexité (LIFAPC)  
-TP 9 — Encrage d'une image avec deux couleurs
+Module : Algorithmique, Programmation et Complexité (LIFAPC) — 2025/2026
 
----
+## 🎯 Objectif
+Binariser une image en niveaux de gris (PGM P2) en **noir/blanc** via un modèle graphe + **flot maximum / coupe minimale**.
+Contrairement à un simple seuillage, la classification d’un pixel dépend aussi de son **contexte local** (contrastes).
 
-## 📌 Objectif du projet
+## 🧠 Modélisation (graphe)
+- Chaque pixel = un nœud
+- Arcs vers les 4 voisins (N, S, E, O)
+- Deux nœuds spéciaux :
+  - **S** : source (encre noire)
+  - **P** : puits (récupération / blanc)
+- Arcs supplémentaires : **S → pixel** et **pixel → P**
 
-Ce projet implémente un algorithme d’encrage (binarisation) d’une image en niveaux de gris en utilisant un **flot maximum**.  
-L’image est modélisée comme un graphe où :
+Implémentation : image stockée en **tableau 1D de taille L×C**, pixel (i, j) à l’indice `i*C + j`.
 
-- chaque pixel est un nœud,
-- chaque pixel est relié à ses quatre voisins (Nord, Sud, Est, Ouest),
-- deux nœuds supplémentaires sont ajoutés :  
-  - **S** = source (encre noire)  
-  - **P** = puits (encre blanche)
+## 🧮 Capacités des arcs (paramètres H, σ, α)
+Entre deux voisins p et q :
+Cap(p,q) = round( H * exp( - (I(p)-I(q))² / (2σ²) ) )
 
-Après calcul du flot maximum, la **coupure minimale** sépare automatiquement les pixels sombres (vers S) des pixels clairs (vers P).  
-On obtient ainsi une binarisation plus intelligente qu’un simple seuillage.
+Vers la source et le puits (éviter log(0)) :
+Cap(S,p) = round( -α * ln( (I(p) + ε) / (255 + 2ε) ) )
+Cap(p,P) = round( -α * ln( (255 - I(p) + ε) / (255 + 2ε) ) )
 
----
+> Reco sujet : H=100, σ ∈ [3..30], α ∈ [100..500] selon l’image.
 
-## 📁 Organisation du projet
+## 🔁 Algorithme (Edmonds–Karp)
+1) BFS dans le graphe résiduel pour trouver un chemin améliorant S → P  
+2) Calcul du goulot d’étranglement `delta` sur le chemin :
+- Pour arcs pixel↔pixel : `Cap(p,q) - F(p,q) + F(q,p)`
+- Pour S→pixel : `Cap(S,q) - F(S,q)`
+- Pour pixel→P : `Cap(p,P) - F(p,P)`
+3) Augmentation du flot sur le chemin (gestion de l’arc inverse si dépassement)
+4) Répéter jusqu’à absence de chemin améliorant ⇒ flot maximal
 
-├── main.cpp
-├── Image.h / Image.cpp
-├── Pixel.h / Pixel.cpp
-├── MaxFlow.h / MaxFlow.cpp
-├── Makefile
-└── README.md
----
+## ✂️ Coupe minimale & binarisation
+BFS final depuis **S** dans le graphe résiduel :
+- Pixels atteignables depuis S ⇒ **noir (0)**
+- Autres pixels ⇒ **blanc (255)**
 
-## 🧩 Fonctionnement général
+Sortie écrite dans `resultat.pgm` (PGM ASCII P2).
 
-### 1. Chargement d’une image
-Lecture d’un fichier **PGM ASCII (P2)**, stockage dans un tableau 1D.
+## 📁 Organisation
+- `Image.*` : lecture/écriture PGM, stockage 1D, accès voisins
+- `Pixel.*` : intensité + 6 capacités + 6 flots (voisins + S + P)
+- `MaxFlow.*` : BFS, chemin, delta, mise à jour résiduel (Edmonds–Karp)
+- `main.cpp` : démo de bout en bout (load → maxflow → cut → save)
+- `Makefile` : compilation modulaire
 
-### 2. Calcul des capacités
-- **Entre voisins** :  
-  H · exp(- (I(p)-I(q))² / (2σ²))
-- **Vers la source / le puits** :  
-  -α log(proportion liée à la luminosité)
-
-### 3. Construction du graphe de flot
-Création de **L×C + 2 nœuds**, avec liste d’adjacence et arêtes inverses.
-
-### 4. Algorithme de flot maximum
-Implémentation de **Edmonds–Karp** :
-
-1. BFS pour trouver un chemin non saturé  
-2. Calcul du goulot d’étranglement (delta)  
-3. Mise à jour du graphe résiduel  
-4. Répétition jusqu’à blocage  
-
-### 5. Coupure minimale
-BFS final dans le graphe résiduel depuis S → ensemble des pixels “noirs”.
-
-### 6. Binarisation
-- Pixels accessibles depuis S → intensité **0 (noir)**  
-- Les autres → **255 (blanc)**  
-
-### 7. Sauvegarde
-Écriture dans `resultat.pgm` (format P2 ASCII).
-
----
-
-## 🔧 Compilation
-
-Sous Linux ou macOS :
+## ⚙️ Compilation / Exécution
+```bash
 make
-
-Nettoyer :
-make clean
-
-
-Exécuter :
 ./tp9
-
-
----
-
-## 🔢 Paramètres importants
-
-- **H** : échelle des capacités entre voisins (souvent 100)  
-- **σ (sigma)** : contraste local toléré (3 à 30)  
-- **α (alpha)** : pondération clair/sombre (100 à 500)  
-
----
-
-## 🖥️ Compatibilité Linux / macOS
-
-- Fonctionne avec `g++` standard (GNU ou Apple Clang)  
-- Aucun package externe nécessaire  
-- Compatible Apple Silicon M1/M2/M3  
-- Compatible salles de TP Linux  
-
----
-
-## 👥 Auteurs
-
-Leo 
-L3 Informatique UCBL — 2025 / 2026
+make clean
