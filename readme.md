@@ -1,56 +1,68 @@
-# Projet LIFAPC (TP9) — Encrage d’une image par flot maximum (min-cut)
+# Projet LIFAPC — TP9 : Encrage d’une image par flot maximum (min-cut)
 Université Claude Bernard Lyon 1 — L3 Informatique  
 Module : Algorithmique, Programmation et Complexité (LIFAPC) — 2025/2026
 
-## 🎯 Objectif
-Binariser une image en niveaux de gris (PGM P2) en **noir/blanc** via un modèle graphe + **flot maximum / coupe minimale**.
-Contrairement à un simple seuillage, la classification d’un pixel dépend aussi de son **contexte local** (contrastes).
+## Objectif
+Le but est de binariser une image en niveaux de gris (format PGM ASCII P2) en noir/blanc via un modèle par graphe et le calcul d’un flot maximum / coupe minimale.  
+Contrairement à un seuillage pixel par pixel, la décision tient compte du voisinage (continuité et contraste).
 
-## 🧠 Modélisation (graphe)
-- Chaque pixel = un nœud
-- Arcs vers les 4 voisins (N, S, E, O)
-- Deux nœuds spéciaux :
-  - **S** : source (encre noire)
-  - **P** : puits (récupération / blanc)
-- Arcs supplémentaires : **S → pixel** et **pixel → P**
+## Modélisation
+- Chaque pixel correspond à un sommet du graphe.
+- Connexité 4-voisins : N, S, E, O.
+- Deux sommets supplémentaires :
+  - `S` : source (classe “encre” / objet)
+  - `P` : puits (classe “fond”)
+- Arcs ajoutés :
+  - `S -> pixel`
+  - `pixel -> P`
 
-Implémentation : image stockée en **tableau 1D de taille L×C**, pixel (i, j) à l’indice `i*C + j`.
+L’image est stockée dans un tableau 1D de taille `L*C`.  
+Le pixel `(i, j)` est à l’indice `k = i*C + j`.
 
-## 🧮 Capacités des arcs (paramètres H, σ, α)
-Entre deux voisins p et q :
+## Capacités
+### Arcs entre voisins
+Pour deux pixels voisins `p` et `q` :
 Cap(p,q) = round( H * exp( - (I(p)-I(q))² / (2σ²) ) )
 
-Vers la source et le puits (éviter log(0)) :
+### Arcs vers la source et le puits
+On utilise une formulation logarithmique avec un epsilon pour éviter `log(0)` :
 Cap(S,p) = round( -α * ln( (I(p) + ε) / (255 + 2ε) ) )
 Cap(p,P) = round( -α * ln( (255 - I(p) + ε) / (255 + 2ε) ) )
 
-> Reco sujet : H=100, σ ∈ [3..30], α ∈ [100..500] selon l’image.
+Valeurs typiques (recommandations sujet) :
+- `H = 100`
+- `σ` dans `[3..30]`
+- `α` dans `[100..500]`
+Ces paramètres dépendent de l’image.
 
-## 🔁 Algorithme (Edmonds–Karp)
-1) BFS dans le graphe résiduel pour trouver un chemin améliorant S → P  
-2) Calcul du goulot d’étranglement `delta` sur le chemin :
-- Pour arcs pixel↔pixel : `Cap(p,q) - F(p,q) + F(q,p)`
-- Pour S→pixel : `Cap(S,q) - F(S,q)`
-- Pour pixel→P : `Cap(p,P) - F(p,P)`
-3) Augmentation du flot sur le chemin (gestion de l’arc inverse si dépassement)
-4) Répéter jusqu’à absence de chemin améliorant ⇒ flot maximal
+## Algorithme
+Le flot maximum est calculé avec Edmonds–Karp :
+- BFS dans le graphe résiduel pour trouver un chemin augmentant `S -> P`
+- calcul du goulot d’étranglement `delta`
+- mise à jour du résiduel (diminution des capacités directes et augmentation des inverses)
+- répétition jusqu’à absence de chemin augmentant
 
-## ✂️ Coupe minimale & binarisation
-BFS final depuis **S** dans le graphe résiduel :
-- Pixels atteignables depuis S ⇒ **noir (0)**
-- Autres pixels ⇒ **blanc (255)**
+## Coupe minimale et binarisation
+Une fois le flot maximum atteint :
+- on lance un BFS depuis `S` dans le graphe résiduel final
+- les pixels atteignables depuis `S` sont classés côté source, les autres côté puits
 
-Sortie écrite dans `resultat.pgm` (PGM ASCII P2).
+Binarisation produite :
+- pixels atteignables depuis `S` : noir (`0`)
+- autres pixels : blanc (`255`)
 
-## 📁 Organisation
-- `Image.*` : lecture/écriture PGM, stockage 1D, accès voisins
-- `Pixel.*` : intensité + 6 capacités + 6 flots (voisins + S + P)
-- `MaxFlow.*` : BFS, chemin, delta, mise à jour résiduel (Edmonds–Karp)
-- `main.cpp` : démo de bout en bout (load → maxflow → cut → save)
-- `Makefile` : compilation modulaire
+Le résultat est écrit dans `resultat.pgm` (PGM ASCII P2).
 
-## ⚙️ Compilation / Exécution
+## Organisation des fichiers
+- `Image.*` : lecture/écriture PGM, stockage 1D, accès aux pixels/voisins
+- `Pixel.*` : intensité + tableaux `cap[6]` et `flot[6]`
+- `MaxFlow.*` : construction du graphe, BFS, Edmonds–Karp, coupe minimale
+- `main.cpp` : exécution complète (lecture -> flot max -> coupe -> écriture)
+- `Makefile` : compilation
+
+## Compilation / Exécution
 ```bash
 make
 ./tp9
 make clean
+```
