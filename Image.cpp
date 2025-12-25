@@ -1,241 +1,173 @@
 #include "Image.h"
-#include <iostream>
+#include <cmath>
 #include <fstream>
+#include <iostream>
 #include <string>
-#include <cmath> // exp, log, round
 
-using namespace std;
+Image::Image() : L(0), C(0) {}
 
-Image::Image() {
-    L = 0;
-    C = 0;
-}
+int Image::getLignes() const { return L; }
+int Image::getColonnes() const { return C; }
 
-int Image::getLignes() const {
-    return L;
-}
+int Image::index(int i, int j) const { return i * C + j; }
 
-int Image::getColonnes() const {
-    return C;
-}
+Pixel& Image::at(int i, int j) { return tab[index(i, j)]; }
+const Pixel& Image::at(int i, int j) const { return tab[index(i, j)]; }
 
-// Transforme des coordonnées (i,j) en indice dans le tableau 1D.
-int Image::index(int i, int j) const {
-    return i * C + j;
-}
+bool Image::dansImage(int i, int j) const { return i >= 0 && i < L && j >= 0 && j < C; }
 
-Pixel& Image::at(int i, int j) {
-    return tab[index(i, j)];
-}
-
-const Pixel& Image::at(int i, int j) const {
-    return tab[index(i, j)];
-}
-
-// Vérifie que (i,j) est bien à l'intérieur de l'image.
-bool Image::dansImage(int i, int j) const {
-    return (i >= 0 && i < L && j >= 0 && j < C);
-}
-
-// -----------------------------------------------------------------------------
-// CHARGEMENT D'UNE IMAGE PGM ASCII (P2)
-// -----------------------------------------------------------------------------
 bool Image::chargerPGM(const char* nomFichier) {
-    ifstream ifs;
-    ifs.open(nomFichier);
+    std::ifstream ifs(nomFichier);
     if (!ifs) {
-        cerr << "Impossible d'ouvrir le fichier " << nomFichier << " en lecture." << endl;
+        std::cerr << "Impossible d'ouvrir le fichier " << nomFichier << " en lecture.\n";
         return false;
     }
 
-    // Le fichier doit commencer par "P2".
-    string magic;
+    std::string magic;
     ifs >> magic;
     if (!ifs || magic != "P2") {
-        cerr << "Erreur : format PGM ASCII (P2) attendu." << endl;
+        std::cerr << "Erreur : format PGM ASCII (P2) attendu.\n";
         return false;
     }
 
-    // On ignore les lignes de commentaires qui commencent par '#'.
     while (true) {
-        ifs >> ws;           // enlève espaces, retours à la ligne, etc.
-        int c = ifs.peek();  // regarde le prochain caractère sans le lire
-
-        if (c == '#') {
-            string ligne;
-            getline(ifs, ligne); // lit et ignore la ligne entière
-        } else {
-            break; // ce n'est plus un commentaire
-        }
+        ifs >> std::ws;
+        if (ifs.peek() != '#') break;
+        std::string ligne;
+        std::getline(ifs, ligne);
     }
 
-    // Lecture largeur / hauteur.
-    int largeur, hauteur;
+    int largeur = 0, hauteur = 0;
     ifs >> largeur >> hauteur;
-    if (!ifs) {
-        cerr << "Erreur de lecture de la largeur / hauteur." << endl;
+    if (!ifs || largeur <= 0 || hauteur <= 0) {
+        std::cerr << "Erreur de lecture de la largeur / hauteur.\n";
         return false;
     }
 
-    // Lecture de la valeur max (souvent 255).
-    int maxval;
+    int maxval = 0;
     ifs >> maxval;
-    if (!ifs) {
-        cerr << "Erreur de lecture de la valeur maximum." << endl;
-        return false;
-    }
-    if (maxval <= 0) {
-        cerr << "Valeur maximum invalide dans le PGM : " << maxval << endl;
+    if (!ifs || maxval <= 0) {
+        std::cerr << "Valeur maximum invalide dans le PGM : " << maxval << "\n";
         return false;
     }
 
-    // On met à jour les dimensions et on alloue le tableau de pixels.
     C = largeur;
     L = hauteur;
-    tab.clear();
-    tab.resize(L * C);
+    tab.assign(L * C, Pixel{});
 
-    // Lecture des L*C niveaux de gris.
     for (int i = 0; i < L; ++i) {
         for (int j = 0; j < C; ++j) {
-            int g;
+            int g = 0;
             ifs >> g;
             if (!ifs) {
-                cerr << "Erreur de lecture des niveaux de gris." << endl;
+                std::cerr << "Erreur de lecture des niveaux de gris.\n";
                 return false;
             }
-
-            // On s'assure que g reste dans [0, maxval].
             if (g < 0) g = 0;
             if (g > maxval) g = maxval;
-
-            tab[index(i, j)].intensite = g;
+            at(i, j).intensite = g;
         }
     }
 
-    ifs.close();
     return true;
 }
 
-// -----------------------------------------------------------------------------
-// SAUVEGARDE D'UNE IMAGE PGM ASCII (P2)
-// -----------------------------------------------------------------------------
 bool Image::sauvegarderPGM(const char* nomFichier) const {
-    ofstream ofs;
-    ofs.open(nomFichier);
+    std::ofstream ofs(nomFichier);
     if (!ofs) {
-        cerr << "Impossible d'ouvrir le fichier " << nomFichier << " en écriture." << endl;
+        std::cerr << "Impossible d'ouvrir le fichier " << nomFichier << " en écriture.\n";
         return false;
     }
 
-    ofs << "P2\n";
-    ofs << C << " " << L << "\n";
-    ofs << 255 << "\n";
+    ofs << "P2\n" << C << " " << L << "\n255\n";
 
     for (int i = 0; i < L; ++i) {
         for (int j = 0; j < C; ++j) {
             int g = at(i, j).intensite;
             if (g < 0) g = 0;
             if (g > 255) g = 255;
-            ofs << g << " ";
+            ofs << g << (j + 1 == C ? '\n' : ' ');
         }
-        ofs << "\n";
     }
 
-    ofs.close();
     return true;
 }
 
-// -----------------------------------------------------------------------------
-// CALCUL DES CAPACITES ENTRE PIXELS VOISINS (N, S, O, E)
-// -----------------------------------------------------------------------------
-//
-// Cap(p,q) = H * exp( - (I(p) - I(q))^2 / (2*sigma^2) )
-//
 void Image::calculerCapacites(double H, double sigma) {
-    double denom = 2.0 * sigma * sigma;
+    if (sigma <= 0.0) {
+        for (int i = 0; i < L; ++i) {
+            for (int j = 0; j < C; ++j) {
+                Pixel& p = at(i, j);
+                p.cap[NORD] = p.cap[SUD] = p.cap[OUEST] = p.cap[EST] = 0;
+                p.cap[SOURCE] = 0;
+                p.cap[PUITS] = 0;
+            }
+        }
+        return;
+    }
+
+    const double denom = 2.0 * sigma * sigma;
 
     for (int i = 0; i < L; ++i) {
         for (int j = 0; j < C; ++j) {
             Pixel& p = at(i, j);
-            double Ip = (double)p.intensite;
+            const double Ip = static_cast<double>(p.intensite);
 
-            // Nord
+            p.cap[NORD] = 0;
+            p.cap[SUD] = 0;
+            p.cap[OUEST] = 0;
+            p.cap[EST] = 0;
+
             if (dansImage(i - 1, j)) {
-                double Iq = (double)at(i - 1, j).intensite;
-                double diff = Ip - Iq;
-                p.cap[NORD] = (int)(H * exp(-(diff * diff) / denom));
-            } else {
-                p.cap[NORD] = 0;
+                const double diff = Ip - static_cast<double>(at(i - 1, j).intensite);
+                p.cap[NORD] = static_cast<int>(H * std::exp(-(diff * diff) / denom));
             }
-
-            // Sud
             if (dansImage(i + 1, j)) {
-                double Iq = (double)at(i + 1, j).intensite;
-                double diff = Ip - Iq;
-                p.cap[SUD] = (int)(H * exp(-(diff * diff) / denom));
-            } else {
-                p.cap[SUD] = 0;
+                const double diff = Ip - static_cast<double>(at(i + 1, j).intensite);
+                p.cap[SUD] = static_cast<int>(H * std::exp(-(diff * diff) / denom));
             }
-
-            // Ouest
             if (dansImage(i, j - 1)) {
-                double Iq = (double)at(i, j - 1).intensite;
-                double diff = Ip - Iq;
-                p.cap[OUEST] = (int)(H * exp(-(diff * diff) / denom));
-            } else {
-                p.cap[OUEST] = 0;
+                const double diff = Ip - static_cast<double>(at(i, j - 1).intensite);
+                p.cap[OUEST] = static_cast<int>(H * std::exp(-(diff * diff) / denom));
             }
-
-            // Est
             if (dansImage(i, j + 1)) {
-                double Iq = (double)at(i, j + 1).intensite;
-                double diff = Ip - Iq;
-                p.cap[EST] = (int)(H * exp(-(diff * diff) / denom));
-            } else {
-                p.cap[EST] = 0;
+                const double diff = Ip - static_cast<double>(at(i, j + 1).intensite);
+                p.cap[EST] = static_cast<int>(H * std::exp(-(diff * diff) / denom));
             }
 
-            // Les capacités SOURCE et PUITS seront remplies après.
             p.cap[SOURCE] = 0;
-            p.cap[PUITS]  = 0;
+            p.cap[PUITS] = 0;
         }
     }
 }
 
-// -----------------------------------------------------------------------------
-// CALCUL DES CAPACITES SOURCE / PUITS
-// -----------------------------------------------------------------------------
 void Image::calculerCapacitesSourcePuits(double alpha) {
-    const double eps = 1e-6; // pour éviter log(0)
+    const double eps = 1e-6;
 
     for (int i = 0; i < L; ++i) {
         for (int j = 0; j < C; ++j) {
             Pixel& p = at(i, j);
-            double I = (double)p.intensite;
+            const double I = static_cast<double>(p.intensite);
 
-            // p_objet élevé = pixel sombre = plutôt objet
             double p_objet = (255.0 - I) / 255.0;
-            // p_fond élevé  = pixel clair  = plutôt fond
-            double p_fond  = I / 255.0;
+            double p_fond = I / 255.0;
 
-            if (p_objet < eps)       p_objet = eps;
+            if (p_objet < eps) p_objet = eps;
             if (p_objet > 1.0 - eps) p_objet = 1.0 - eps;
-            if (p_fond  < eps)       p_fond  = eps;
-            if (p_fond  > 1.0 - eps) p_fond  = 1.0 - eps;
+            if (p_fond < eps) p_fond = eps;
+            if (p_fond > 1.0 - eps) p_fond = 1.0 - eps;
 
-            double capS_double = -alpha * std::log(p_objet);
-            double capP_double = -alpha * std::log(p_fond);
+            const double capS_double = -alpha * std::log(p_objet);
+            const double capP_double = -alpha * std::log(p_fond);
 
-            int capS = (int)std::round(capS_double);
-            int capP = (int)std::round(capP_double);
+            int capS = static_cast<int>(std::round(capS_double));
+            int capP = static_cast<int>(std::round(capP_double));
 
-            // Si la valeur est >0 mais arrondie à 0, on force à 1.
             if (capS_double > 0.0 && capS <= 0) capS = 1;
             if (capP_double > 0.0 && capP <= 0) capP = 1;
 
             p.cap[SOURCE] = capS;
-            p.cap[PUITS]  = capP;
+            p.cap[PUITS] = capP;
         }
     }
 }
