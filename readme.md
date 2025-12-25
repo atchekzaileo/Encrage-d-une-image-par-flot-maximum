@@ -26,6 +26,7 @@ Cap(p,q) = round( H * exp( - (I(p)-I(q))² / (2σ²) ) )
 
 ### Arcs vers la source et le puits
 On utilise une formulation logarithmique avec un epsilon pour éviter `log(0)` :
+
 Cap(S,p) = round( -α * ln( (I(p) + ε) / (255 + 2ε) ) )
 
 Cap(p,P) = round( -α * ln( (255 - I(p) + ε) / (255 + 2ε) ) )
